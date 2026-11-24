@@ -283,9 +283,9 @@
 
     <div class="missing-box" id="missingBox">
       <h3>Không tìm thấy ảnh slide</h3>
-      <p>Vui lòng đặt file ảnh vào đúng đường dẫn:<br><code id="expectedPath">photo/Slide1.jpg</code></p>
+      <p>Vui lòng đặt file ảnh vào đúng đường dẫn:<br><code id="expectedPath">photo/Slide1.JPG</code></p>
       <p style="font-size: 0.85rem; color: var(--text-muted);">
-        Hoặc chọn nhanh thư mục chứa các file Slide1.jpg – Slide14.jpg từ máy:
+        Hoặc chọn nhanh thư mục chứa các file Slide1.JPG – Slide14.JPG từ máy:
       </p>
       <label class="file-btn" style="border-color: var(--accent); color: var(--accent);">
         📂 Chọn thư mục ảnh
@@ -320,16 +320,16 @@
   <div class="laser-dot" id="laserDot"></div>
 
   <script>
-    // Cấu hình mặc định theo yêu cầu
+    // Cấu hình mặc định với đuôi .JPG viết in hoa
     const CONFIG = {
       folder: 'photo',
       prefix: 'Slide',
-      ext: 'jpg',
+      ext: 'JPG',
       totalSlides: 14
     };
 
     let currentSlide = 1;
-    let customSlideMap = {}; // Lưu URL nếu người dùng chọn thư mục thủ công
+    let customSlideMap = {};
     let hideTimer = null;
 
     const slideImage = document.getElementById('slideImage');
@@ -367,7 +367,6 @@
       missingBox.classList.remove('active');
       slideImage.src = src;
 
-      // Cập nhật giao diện điều hướng
       currentNum.textContent = currentSlide;
       progressBar.style.width = `${(currentSlide / CONFIG.totalSlides) * 100}%`;
       btnPrev.disabled = currentSlide === 1;
@@ -382,7 +381,6 @@
       updateGridHighlight();
     }
 
-    // Xử lý khi ảnh chưa tồn tại trong thư mục photo
     slideImage.onerror = () => {
       slideImage.classList.add('hidden');
       missingBox.classList.add('active');
@@ -396,7 +394,6 @@
       if (currentSlide > 1) renderSlide(currentSlide - 1);
     }
 
-    // Tạo lưới thumbnail
     function buildGrid() {
       gridContainer.innerHTML = '';
       for (let i = 1; i <= CONFIG.totalSlides; i++) {
@@ -440,7 +437,6 @@
       }
     }
 
-    // Bút laser
     function toggleLaser() {
       document.body.classList.toggle('laser-mode');
       btnLaser.classList.toggle('active');
@@ -454,7 +450,6 @@
       resetControlsTimer();
     });
 
-    // Tự ẩn thanh công cụ khi không di chuột
     function resetControlsTimer() {
       controls.classList.remove('auto-hide');
       clearTimeout(hideTimer);
@@ -465,7 +460,6 @@
       }, 2800);
     }
 
-    // Toàn màn hình
     function toggleFullscreen() {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -474,7 +468,6 @@
       }
     }
 
-    // Hỗ trợ chọn thư mục trực tiếp từ máy nếu chạy file cục bộ
     document.getElementById('folderInput').addEventListener('change', (e) => {
       const files = Array.from(e.target.files);
       customSlideMap = {};
@@ -488,7 +481,6 @@
       renderSlide(1);
     });
 
-    // Phím tắt điều khiển
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (gridModal.classList.contains('open')) toggleGrid(false);
@@ -531,7 +523,6 @@
       }
     });
 
-    // Hỗ trợ vuốt trên điện thoại / máy tính bảng
     let touchStartX = 0;
     document.addEventListener('touchstart', e => {
       touchStartX = e.changedTouches[0].screenX;
@@ -545,7 +536,6 @@
       }
     }, { passive: true });
 
-    // Khởi chạy
     renderSlide(1);
     resetControlsTimer();
   </script>
