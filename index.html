@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trình Chiếu Slide Web</title>
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --panel-bg: rgba(17, 24, 39, 0.88);
+      --border-color: rgba(255, 255, 255, 0.14);
+      --accent: #38bdf8;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Thanh tiến trình trên cùng */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.25s ease;
+      z-index: 50;
+    }
+
+    /* Khu vực hiển thị slide chính */
+    .stage {
+      position: relative;
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .slide-img {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+      transition: opacity 0.2s ease;
+    }
+
+    .slide-img.hidden {
+      display: none;
+    }
+
+    /* Thông báo khi chưa có ảnh trong folder photo */
+    .missing-box {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 32px;
+      border: 1px dashed var(--border-color);
+      border-radius: 16px;
+      background: rgba(30, 41, 59, 0.5);
+      max-width: 480px;
+      gap: 12px;
+    }
+
+    .missing-box.active {
+      display: flex;
+    }
+
+    .missing-box code {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 3px 8px;
+      border-radius: 6px;
+      color: var(--accent);
+      font-size: 0.95rem;
+    }
+
+    /* Vùng click trái/phải nhanh */
+    .nav-zone {
+      position: absolute;
+      top: 0;
+      bottom: 70px;
+      width: 15%;
+      z-index: 10;
+      cursor: pointer;
+    }
+    .nav-zone.left { left: 0; }
+    .nav-zone.right { right: 0; }
+
+    /* Thanh điều khiển nổi phía dưới */
+    .controls {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      z-index: 40;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+
+    .controls.auto-hide {
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 15px);
+    }
+
+    button, .file-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    button:hover, .file-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    button.active {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .counter {
+      font-variant-numeric: tabular-nums;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      padding: 0 6px;
+      min-width: 72px;
+      text-align: center;
+    }
+
+    .counter strong {
+      color: var(--text-main);
+    }
+
+    .divider {
+      width: 1px;
+      height: 18px;
+      background: var(--border-color);
+    }
+
+    /* Chế độ xem lưới toàn bộ slide (Grid) */
+    .grid-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(9, 13, 22, 0.95);
+      backdrop-filter: blur(10px);
+      z-index: 60;
+      display: none;
+      flex-direction: column;
+      padding: 24px;
+      overflow-y: auto;
+    }
+
+    .grid-modal.open {
+      display: flex;
+    }
+
+    .grid-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 18px;
+    }
+
+    .thumb-card {
+      background: #161e31;
+      border: 2px solid transparent;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .thumb-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .thumb-card.current {
+      border-color: var(--accent);
+    }
+
+    .thumb-card img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      display: block;
+      background: #0f172a;
+    }
+
+    .thumb-label {
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Con trỏ Laser thuyết trình */
+    body.laser-mode, body.laser-mode * {
+      cursor: none !important;
+    }
+
+    .laser-dot {
+      position: fixed;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #ff2a2a;
+      box-shadow: 0 0 10px #ff2a2a, 0 0 22px #ff0000;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+      display: none;
+    }
+
+    body.laser-mode .laser-dot {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="progress-bar" id="progressBar"></div>
+
+  <main class="stage" id="stage">
+    <div class="nav-zone left" onclick="prevSlide()" title="Slide trước"></div>
+    <div class="nav-zone right" onclick="nextSlide()" title="Slide tiếp theo"></div>
+
+    <img id="slideImage" class="slide-img" alt="Slide trình chiếu" />
+
+    <div class="missing-box" id="missingBox">
+      <h3>Không tìm thấy ảnh slide</h3>
+      <p>Vui lòng đặt file ảnh vào đúng đường dẫn:<br><code id="expectedPath">photo/Slide1.jpg</code></p>
+      <p style="font-size: 0.85rem; color: var(--text-muted);">
+        Hoặc chọn nhanh thư mục chứa các file Slide1.jpg – Slide14.jpg từ máy:
+      </p>
+      <label class="file-btn" style="border-color: var(--accent); color: var(--accent);">
+        📂 Chọn thư mục ảnh
+        <input type="file" id="folderInput" webkitdirectory directory multiple accept="image/*" hidden />
+      </label>
+    </div>
+  </main>
+
+  <!-- Thanh điều khiển -->
+  <div class="controls" id="controls">
+    <button id="btnPrev" onclick="prevSlide()" title="Slide trước (←)">◀ Trước</button>
+    <div class="counter"><strong id="currentNum">1</strong> / <span id="totalNum">14</span></div>
+    <button id="btnNext" onclick="nextSlide()" title="Slide tiếp (→)">Sau ▶</button>
+
+    <div class="divider"></div>
+
+    <button onclick="toggleGrid()" title="Xem tất cả slide (Phím G)">⊞ Lưới</button>
+    <button id="btnLaser" onclick="toggleLaser()" title="Bút Laser (Phím L)">🔴 Laser</button>
+    <button onclick="toggleFullscreen()" title="Toàn màn hình (Phím F)">⛶ Toàn màn hình</button>
+  </div>
+
+  <!-- Modal xem lưới tất cả slide -->
+  <div class="grid-modal" id="gridModal">
+    <div class="grid-header">
+      <h3>Danh sách Slide (1 – 14)</h3>
+      <button onclick="toggleGrid()" style="border-color: var(--border-color);">✕ Đóng (Esc)</button>
+    </div>
+    <div class="grid-container" id="gridContainer"></div>
+  </div>
+
+  <!-- Điểm laser -->
+  <div class="laser-dot" id="laserDot"></div>
+
+  <script>
+    // Cấu hình mặc định theo yêu cầu
+    const CONFIG = {
+      folder: 'photo',
+      prefix: 'Slide',
+      ext: 'jpg',
+      totalSlides: 14
+    };
+
+    let currentSlide = 1;
+    let customSlideMap = {}; // Lưu URL nếu người dùng chọn thư mục thủ công
+    let hideTimer = null;
+
+    const slideImage = document.getElementById('slideImage');
+    const missingBox = document.getElementById('missingBox');
+    const expectedPath = document.getElementById('expectedPath');
+    const currentNum = document.getElementById('currentNum');
+    const totalNum = document.getElementById('totalNum');
+    const progressBar = document.getElementById('progressBar');
+    const btnPrev = document.getElementById('btnPrev');
+    const btnNext = document.getElementById('btnNext');
+    const gridModal = document.getElementById('gridModal');
+    const gridContainer = document.getElementById('gridContainer');
+    const controls = document.getElementById('controls');
+    const laserDot = document.getElementById('laserDot');
+    const btnLaser = document.getElementById('btnLaser');
+
+    totalNum.textContent = CONFIG.totalSlides;
+
+    function getSlideSrc(index) {
+      if (customSlideMap[index]) {
+        return customSlideMap[index];
+      }
+      return `${CONFIG.folder}/${CONFIG.prefix}${index}.${CONFIG.ext}`;
+    }
+
+    function renderSlide(index) {
+      if (index < 1) index = 1;
+      if (index > CONFIG.totalSlides) index = CONFIG.totalSlides;
+      currentSlide = index;
+
+      const src = getSlideSrc(currentSlide);
+      expectedPath.textContent = src;
+
+      slideImage.classList.remove('hidden');
+      missingBox.classList.remove('active');
+      slideImage.src = src;
+
+      // Cập nhật giao diện điều hướng
+      currentNum.textContent = currentSlide;
+      progressBar.style.width = `${(currentSlide / CONFIG.totalSlides) * 100}%`;
+      btnPrev.disabled = currentSlide === 1;
+      btnNext.disabled = currentSlide === CONFIG.totalSlides;
+
+      // Tải trước slide kế tiếp để chuyển trang mượt mà
+      if (currentSlide < CONFIG.totalSlides) {
+        const preloadNext = new Image();
+        preloadNext.src = getSlideSrc(currentSlide + 1);
+      }
+
+      updateGridHighlight();
+    }
+
+    // Xử lý khi ảnh chưa tồn tại trong thư mục photo
+    slideImage.onerror = () => {
+      slideImage.classList.add('hidden');
+      missingBox.classList.add('active');
+    };
+
+    function nextSlide() {
+      if (currentSlide < CONFIG.totalSlides) renderSlide(currentSlide + 1);
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) renderSlide(currentSlide - 1);
+    }
+
+    // Tạo lưới thumbnail
+    function buildGrid() {
+      gridContainer.innerHTML = '';
+      for (let i = 1; i <= CONFIG.totalSlides; i++) {
+        const card = document.createElement('div');
+        card.className = 'thumb-card';
+        card.dataset.index = i;
+        card.onclick = () => {
+          renderSlide(i);
+          toggleGrid(false);
+        };
+
+        const img = document.createElement('img');
+        img.src = getSlideSrc(i);
+        img.alt = `Slide ${i}`;
+        img.loading = 'lazy';
+
+        const label = document.createElement('div');
+        label.className = 'thumb-label';
+        label.innerHTML = `<span>Slide ${i}</span><span>${CONFIG.prefix}${i}.${CONFIG.ext}</span>`;
+
+        card.appendChild(img);
+        card.appendChild(label);
+        gridContainer.appendChild(card);
+      }
+      updateGridHighlight();
+    }
+
+    function updateGridHighlight() {
+      document.querySelectorAll('.thumb-card').forEach(card => {
+        card.classList.toggle('current', Number(card.dataset.index) === currentSlide);
+      });
+    }
+
+    function toggleGrid(forceState) {
+      const willOpen = typeof forceState === 'boolean' ? forceState : !gridModal.classList.contains('open');
+      if (willOpen) {
+        buildGrid();
+        gridModal.classList.add('open');
+      } else {
+        gridModal.classList.remove('open');
+      }
+    }
+
+    // Bút laser
+    function toggleLaser() {
+      document.body.classList.toggle('laser-mode');
+      btnLaser.classList.toggle('active');
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      if (document.body.classList.contains('laser-mode')) {
+        laserDot.style.left = `${e.clientX}px`;
+        laserDot.style.top = `${e.clientY}px`;
+      }
+      resetControlsTimer();
+    });
+
+    // Tự ẩn thanh công cụ khi không di chuột
+    function resetControlsTimer() {
+      controls.classList.remove('auto-hide');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        if (!gridModal.classList.contains('open')) {
+          controls.classList.add('auto-hide');
+        }
+      }, 2800);
+    }
+
+    // Toàn màn hình
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    // Hỗ trợ chọn thư mục trực tiếp từ máy nếu chạy file cục bộ
+    document.getElementById('folderInput').addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      customSlideMap = {};
+      files.forEach(file => {
+        const match = file.name.match(/^Slide(\d+)\.(jpg|jpeg|png|webp)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          customSlideMap[num] = URL.createObjectURL(file);
+        }
+      });
+      renderSlide(1);
+    });
+
+    // Phím tắt điều khiển
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (gridModal.classList.contains('open')) toggleGrid(false);
+        return;
+      }
+      if (gridModal.classList.contains('open')) return;
+
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'ArrowDown':
+        case ' ':
+        case 'PageDown':
+          e.preventDefault();
+          nextSlide();
+          break;
+        case 'ArrowLeft':
+        case 'ArrowUp':
+        case 'PageUp':
+          e.preventDefault();
+          prevSlide();
+          break;
+        case 'Home':
+          renderSlide(1);
+          break;
+        case 'End':
+          renderSlide(CONFIG.totalSlides);
+          break;
+        case 'g':
+        case 'G':
+          toggleGrid();
+          break;
+        case 'l':
+        case 'L':
+          toggleLaser();
+          break;
+        case 'f':
+        case 'F':
+          toggleFullscreen();
+          break;
+      }
+    });
+
+    // Hỗ trợ vuốt trên điện thoại / máy tính bảng
+    let touchStartX = 0;
+    document.addEventListener('touchstart', e => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    document.addEventListener('touchend', e => {
+      const diff = touchStartX - e.changedTouches[0].screenX;
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) nextSlide();
+        else prevSlide();
+      }
+    }, { passive: true });
+
+    // Khởi chạy
+    renderSlide(1);
+    resetControlsTimer();
+  </script>
+</body>
+</html>
